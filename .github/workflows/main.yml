@@ -1,0 +1,40 @@
+name: Gerar APK Sericom
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Baixando o código da Sericom
+        uses: actions/checkout@v4
+
+      - name: 🐍 Configurando o Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: ☕ Configurando o Motor Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: 🐦 Configurando o Flutter (O Construtor)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: 📦 Instalando as peças (Flet e Internet)
+        run: pip install flet requests supabase
+
+      - name: 🚀 Construindo o Aplicativo (Mágica acontecendo...)
+        run: flet build apk
+
+      - name: 📤 Salvando o APK Pronto!
+        uses: actions/upload-artifact@v4
+        with:
+          name: App-Sericom-Instalador
+          path: build/apk/**/*.apk
