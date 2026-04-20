@@ -21,21 +21,20 @@ if SUPABASE_INSTALADO:
     supabase: Client = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
 def main(page: ft.Page):
-    # REMOVIDAS AS CONFIGURAÇÕES DE JANELA DE PC!
     page.title = "App Sericom"
     page.theme_mode = ft.ThemeMode.DARK
     page.padding = 0
-    page.scroll = "auto" # Liberando o scroll nativo do celular
+    page.scroll = "auto"
 
-    # ESCUDO PROTETOR ANTI TELA-PRETA
     try:
         estado_app = {"aluno_dados": None, "destino_upload": None, "campo_img_mural": None, "campo_img_galeria": None, "campo_img_quiz": None}
 
         # ==========================================
         # MOTOR DE UPLOAD INFINITO (IMGBB) 🚀
         # ==========================================
-        def on_upload_result(e: ft.FilePickerResultEvent):
-            if not e.files: return
+        # AQUI FOI ONDE A MÁGICA DE CORREÇÃO ACONTECEU! Tirei o tipo do evento (e: ft.FilePickerResultEvent) para não dar conflito.
+        def on_upload_result(e):
+            if not getattr(e, 'files', None): return
             page.snack_bar = ft.SnackBar(ft.Text("Enviando pro cofre infinito... Aguenta aí! ⏳")); page.snack_bar.open = True; page.update()
             
             try:
