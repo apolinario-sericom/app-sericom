@@ -25,13 +25,14 @@ jobs:
       - name: 🐦 Configurando o Flutter (Motor Compatível)
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.24.3'
           channel: 'stable'
 
       - name: 📦 Instalando as peças
-        run: pip install flet==0.25.2 requests supabase
+        run: pip install flet==0.25.2 supabase
 
       - name: 🚀 Construindo o Aplicativo (Modo Fofoqueiro)
-        run: flet build apk. --verbose
+        run: flet build apk . --verbose
 
       - name: 📤 Salvando o APK Pronto!
         uses: actions/upload-artifact@v4
