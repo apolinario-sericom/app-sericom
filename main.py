@@ -46,7 +46,6 @@ def main(page: ft.Page):
                 chave_imgbb = "01ab5e842417d976f2a5bedaeacaa5ec"
                 url_api = "https://api.imgbb.com/1/upload"
                 
-                # Substituindo o requests pelo urllib nativo pra evitar brigas com o Flet
                 dados_post = urllib.parse.urlencode({
                     "key": chave_imgbb,
                     "image": encoded_string
@@ -259,13 +258,14 @@ def main(page: ft.Page):
                             campo_perg_txt.value = ""; campo_perg_img.value = ""; campo_opt_a.value = ""; campo_opt_b.value = ""; campo_opt_c.value = ""; campo_opt_d.value = ""; page.update()
                         except Exception as ex: print(ex)
 
+                    # APOLINÁRIO: AQUI ENTRA A MÁGICA DO 'wrap=True' PARA NÃO CORTAR NADA NA TELA EM PÉ!
                     bloco_admin_quiz.controls.append(ft.Container(padding=15, bgcolor=ft.Colors.GREY_900, border_radius=10, border=ft.border.all(1, ft.Colors.BLUE_400), content=ft.Column([
                         ft.Text("⚙️ Fábrica de Desafios", weight="bold", color=ft.Colors.BLUE_400, size=18),
-                        campo_camp_tit, ft.Row([campo_camp_data, dd_camp_turma]), btn_salvar_camp,
+                        campo_camp_tit, ft.Row([campo_camp_data, dd_camp_turma], wrap=True), btn_salvar_camp,
                         ft.Text("Gerenciar Quizzes", color=ft.Colors.GREY_400, size=12), lista_campanhas_criadas, ft.Divider(color=ft.Colors.GREY_800),
                         ft.Text("➕ Adicionar Pergunta", weight="bold", color=ft.Colors.AMBER_400),
                         dd_perg_campanha, campo_perg_txt, ft.Row([ft.ElevatedButton("📷 Imagem", on_click=abrir_foto_quiz), ft.Container(content=campo_perg_img, expand=True)]),
-                        ft.Row([campo_opt_a, campo_opt_b]), ft.Row([campo_opt_c, campo_opt_d]), ft.Row([dd_certa, campo_pts]),
+                        ft.Row([campo_opt_a, campo_opt_b], wrap=True), ft.Row([campo_opt_c, campo_opt_d], wrap=True), ft.Row([dd_certa, campo_pts], wrap=True),
                         ft.ElevatedButton("SALVAR PERGUNTA", on_click=salvar_pergunta, bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE)
                     ])))
 
@@ -625,10 +625,17 @@ def main(page: ft.Page):
                 foto_topo = ft.Image(src=aluno_dados.get('foto_url'), width=35, height=35, fit="cover", border_radius=17.5) if aluno_dados.get('foto_url') else ft.Icon(ft.Icons.ACCOUNT_BOX, color=ft.Colors.WHITE)
                 pts_cabecalho = aluno_dados.get('pontos') or 0
 
+                # APOLINÁRIO: BOTÃO DE SAIR AGORA APAGA A MEMÓRIA DO CELULAR
+                def fazer_logout(e):
+                    page.client_storage.remove("sessao_user")
+                    page.client_storage.remove("sessao_senha")
+                    mostrar_tela_login()
+
                 page.add(ft.Column([
                     ft.Container(bgcolor=ft.Colors.RED_900, padding=15, content=ft.Row([
                         ft.GestureDetector(content=foto_topo, on_tap=abrir_carteirinha), ft.Text(f" {aluno_dados.get('nome','')}", size=16, weight="bold", color=ft.Colors.WHITE, expand=True), 
-                        ft.IconButton(ft.Icons.NOTIFICATIONS_ACTIVE, icon_color=ft.Colors.AMBER_400, on_click=checar_notificacoes), ft.IconButton(ft.Icons.LOGOUT, icon_color=ft.Colors.WHITE, on_click=lambda _: mostrar_tela_login())
+                        ft.IconButton(ft.Icons.NOTIFICATIONS_ACTIVE, icon_color=ft.Colors.AMBER_400, on_click=checar_notificacoes), 
+                        ft.IconButton(ft.Icons.LOGOUT, icon_color=ft.Colors.WHITE, on_click=fazer_logout)
                     ])), 
                     caixa_dica, menu_raiz, ft.Divider(height=1, color=ft.Colors.GREY_800), area_conteudo
                 ], expand=True)); page.update()
@@ -641,13 +648,17 @@ def main(page: ft.Page):
         # ==========================================
         def fazer_login(e):
             u = campo_usuario.value; s = campo_senha.value
-            if u == "admin" and s == "Caderneta7!": mostrar_tela_aluno({"id": 0, "usuario": "admin", "nome": "Chefe Apolinário", "turma": "Diretoria", "pontos": 0, "pontos_turma": 0, "is_admin": True}); return
+            if u == "admin" and s == "Caderneta7!": 
+                page.client_storage.set("sessao_user", u); page.client_storage.set("sessao_senha", s)
+                mostrar_tela_aluno({"id": 0, "usuario": "admin", "nome": "Chefe Apolinário", "turma": "Diretoria", "pontos": 0, "pontos_turma": 0, "is_admin": True}); return
             if not u or not s: texto_erro.value = "Preencha tudo!"; page.update(); return
             texto_erro.value = "Carregando..."; page.update()
             try:
                 res = supabase.table("arena_usuarios").select("*").eq("usuario", u).eq("senha", s).execute()
                 if res.data and len(res.data) > 0: 
-                    d = res.data[0]; mostrar_tela_aluno({"id": d.get('id'), "usuario": d.get('usuario',''), "nome": d.get('nome_aluno',''), "turma": d.get('turma', ''), "pontos": d.get('pontos') or 0, "pontos_turma": d.get('pontos_turma') or 0, "foto_url": d.get('foto_url', ''), "faltas": d.get('faltas') or 0, "is_admin": False})
+                    d = res.data[0]
+                    page.client_storage.set("sessao_user", u); page.client_storage.set("sessao_senha", s)
+                    mostrar_tela_aluno({"id": d.get('id'), "usuario": d.get('usuario',''), "nome": d.get('nome_aluno',''), "turma": d.get('turma', ''), "pontos": d.get('pontos') or 0, "pontos_turma": d.get('pontos_turma') or 0, "foto_url": d.get('foto_url', ''), "faltas": d.get('faltas') or 0, "is_admin": False})
                 else: texto_erro.value = "Usuário ou Senha incorretos!"; page.update()
             except Exception as ex: print("Erro login:", ex); texto_erro.value = f"Erro de conexão: {ex}"; page.update()
 
@@ -655,6 +666,12 @@ def main(page: ft.Page):
             page.clean(); global campo_usuario, campo_senha, texto_erro
             campo_usuario = ft.TextField(label="Usuário", width=300, border_color=ft.Colors.RED_600); campo_senha = ft.TextField(label="Senha", password=True, can_reveal_password=True, width=300, border_color=ft.Colors.RED_600); texto_erro = ft.Text("", color=ft.Colors.RED_400, size=14)
             page.add(ft.Container(padding=50, alignment=ft.alignment.center, content=ft.Column(horizontal_alignment=ft.CrossAxisAlignment.CENTER, controls=[ft.Icon(name=ft.Icons.LAPTOP_CHROMEBOOK, size=80, color=ft.Colors.RED_600), ft.Text("SERICOM APP", size=35, weight="bold", color=ft.Colors.WHITE), ft.Text("Portal do Aluno", size=16, color=ft.Colors.GREY_400), ft.Divider(height=30, color=ft.Colors.TRANSPARENT), campo_usuario, campo_senha, texto_erro, ft.ElevatedButton("ENTRAR", width=300, height=50, bgcolor=ft.Colors.RED_600, color=ft.Colors.WHITE, on_click=fazer_login)]))); page.update()
+            
+            # APOLINÁRIO: O ROBÔ TENTA LOGAR SOZINHO SE ACHAR A CHAVE NO COFRE!
+            if page.client_storage.contains_key("sessao_user") and page.client_storage.contains_key("sessao_senha"):
+                campo_usuario.value = page.client_storage.get("sessao_user")
+                campo_senha.value = page.client_storage.get("sessao_senha")
+                fazer_login(None)
 
         mostrar_tela_login()
 
