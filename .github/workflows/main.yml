@@ -25,14 +25,17 @@ jobs:
       - name: 🐦 Configurando o Flutter (Motor Compatível)
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0' # <-- TRAVAMOS NA VERSÃO ESTÁVEL DA ÉPOCA!
+          flutter-version: '3.19.0'
           channel: 'stable'
+
+      - name: 🤫 Desligando perguntas chatas do Google
+        run: flutter config --no-analytics
 
       - name: 📦 Instalando as peças
         run: pip install flet==0.23.2 requests supabase
 
-      - name: 🚀 Construindo o Aplicativo (Aceitando tudo no automático)
-        run: yes | flet build apk # <-- O 'yes |' RESPONDE 'SIM' PRA QUALQUER PERGUNTA INVISÍVEL!
+      - name: 🚀 Construindo o Aplicativo (Modo Fofoqueiro)
+        run: flet build apk --verbose
 
       - name: 📤 Salvando o APK Pronto!
         uses: actions/upload-artifact@v4
