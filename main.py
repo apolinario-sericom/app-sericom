@@ -32,7 +32,8 @@ def main(page: ft.Page):
         # ==========================================
         # MOTOR DE UPLOAD INFINITO (IMGBB) 🚀
         # ==========================================
-        def on_upload_result(e: ft.FilePickerResultEvent):
+        # Sem tipagem forte do Flet pra evitar conflitos de versão
+        def on_upload_result(e):
             if not getattr(e, 'files', None): return
             page.snack_bar = ft.SnackBar(ft.Text("Enviando pro cofre infinito... Aguenta aí! ⏳")); page.snack_bar.open = True; page.update()
             
