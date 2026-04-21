@@ -28,7 +28,7 @@ jobs:
           channel: 'stable'
 
       - name: 📦 Instalando as peças (Flet e Internet)
-        run: pip install flet requests supabase
+        run: pip install flet==0.23.2 requests supabase
 
       - name: 🚀 Construindo o Aplicativo (Mágica acontecendo...)
         run: flet build apk
