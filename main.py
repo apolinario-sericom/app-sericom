@@ -32,7 +32,7 @@ def main(page: ft.Page):
         # ==========================================
         # MOTOR DE UPLOAD INFINITO (IMGBB) 🚀
         # ==========================================
-        def on_upload_result(e):
+        def on_upload_result(e: ft.FilePickerResultEvent):
             if not getattr(e, 'files', None): return
             page.snack_bar = ft.SnackBar(ft.Text("Enviando pro cofre infinito... Aguenta aí! ⏳")); page.snack_bar.open = True; page.update()
             
@@ -66,9 +66,7 @@ def main(page: ft.Page):
             except Exception as ex: 
                 page.snack_bar = ft.SnackBar(ft.Text(f"Erro ao enviar: {ex}")); page.snack_bar.open = True; page.update()
 
-        # A MUDANÇA PARA DIBLAR A ATUALIZAÇÃO DO FLET ACONTECE AQUI
-        selecionador_arquivos = ft.FilePicker()
-        selecionador_arquivos.on_result = on_upload_result
+        selecionador_arquivos = ft.FilePicker(on_result=on_upload_result)
         page.overlay.append(selecionador_arquivos)
 
         def executar_faxina_mural():
