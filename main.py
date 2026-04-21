@@ -4,7 +4,9 @@ import time
 import os
 import random
 import base64
-import requests
+import urllib.request
+import urllib.parse
+import json
 import traceback
 
 # --- IMPORTAÇÃO DO SUPABASE ---
@@ -32,7 +34,6 @@ def main(page: ft.Page):
         # ==========================================
         # MOTOR DE UPLOAD INFINITO (IMGBB) 🚀
         # ==========================================
-        # Sem tipagem forte do Flet pra evitar conflitos de versão
         def on_upload_result(e):
             if not getattr(e, 'files', None): return
             page.snack_bar = ft.SnackBar(ft.Text("Enviando pro cofre infinito... Aguenta aí! ⏳")); page.snack_bar.open = True; page.update()
@@ -43,26 +44,33 @@ def main(page: ft.Page):
                     encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
                 
                 chave_imgbb = "01ab5e842417d976f2a5bedaeacaa5ec"
-                url_api = f"https://api.imgbb.com/1/upload?key={chave_imgbb}"
-                payload = {"image": encoded_string}
+                url_api = "https://api.imgbb.com/1/upload"
                 
-                resposta = requests.post(url_api, data=payload)
+                # Substituindo o requests pelo urllib nativo pra evitar brigas com o Flet
+                dados_post = urllib.parse.urlencode({
+                    "key": chave_imgbb,
+                    "image": encoded_string
+                }).encode("utf-8")
                 
-                if resposta.status_code == 200:
-                    url_publica = resposta.json()["data"]["url"]
-                    
-                    if estado_app["destino_upload"] == "mural" and estado_app["campo_img_mural"]:
-                        estado_app["campo_img_mural"].value = url_publica; page.snack_bar = ft.SnackBar(ft.Text("✅ Imagem anexada no post!"))
-                    elif estado_app["destino_upload"] == "galeria" and estado_app["campo_img_galeria"]:
-                        estado_app["campo_img_galeria"].value = url_publica; page.snack_bar = ft.SnackBar(ft.Text("✅ Obra de arte anexada!"))
-                    elif estado_app["destino_upload"] == "quiz" and estado_app["campo_img_quiz"]:
-                        estado_app["campo_img_quiz"].value = url_publica; page.snack_bar = ft.SnackBar(ft.Text("✅ Imagem anexada à Pergunta!"))
-                    elif estado_app["destino_upload"] == "perfil":
-                        supabase.table("arena_usuarios").update({"foto_url": url_publica}).eq("id", estado_app["aluno_dados"]['id']).execute()
-                        estado_app["aluno_dados"]['foto_url'] = url_publica; page.snack_bar = ft.SnackBar(ft.Text("✅ Crachá atualizado!"))
-                else:
-                    page.snack_bar = ft.SnackBar(ft.Text("❌ Ops! Erro no servidor do ImgBB."))
-                    
+                req = urllib.request.Request(url_api, data=dados_post)
+                
+                with urllib.request.urlopen(req) as response:
+                    if response.getcode() == 200:
+                        res_json = json.loads(response.read().decode('utf-8'))
+                        url_publica = res_json["data"]["url"]
+                        
+                        if estado_app["destino_upload"] == "mural" and estado_app["campo_img_mural"]:
+                            estado_app["campo_img_mural"].value = url_publica; page.snack_bar = ft.SnackBar(ft.Text("✅ Imagem anexada no post!"))
+                        elif estado_app["destino_upload"] == "galeria" and estado_app["campo_img_galeria"]:
+                            estado_app["campo_img_galeria"].value = url_publica; page.snack_bar = ft.SnackBar(ft.Text("✅ Obra de arte anexada!"))
+                        elif estado_app["destino_upload"] == "quiz" and estado_app["campo_img_quiz"]:
+                            estado_app["campo_img_quiz"].value = url_publica; page.snack_bar = ft.SnackBar(ft.Text("✅ Imagem anexada à Pergunta!"))
+                        elif estado_app["destino_upload"] == "perfil":
+                            supabase.table("arena_usuarios").update({"foto_url": url_publica}).eq("id", estado_app["aluno_dados"]['id']).execute()
+                            estado_app["aluno_dados"]['foto_url'] = url_publica; page.snack_bar = ft.SnackBar(ft.Text("✅ Crachá atualizado!"))
+                    else:
+                        page.snack_bar = ft.SnackBar(ft.Text("❌ Ops! Erro no servidor do ImgBB."))
+                        
                 page.snack_bar.open = True; page.update()
             except Exception as ex: 
                 page.snack_bar = ft.SnackBar(ft.Text(f"Erro ao enviar: {ex}")); page.snack_bar.open = True; page.update()
