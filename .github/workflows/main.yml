@@ -31,7 +31,7 @@ jobs:
         run: pip install flet==0.25.2 requests supabase
 
       - name: 🚀 Construindo o Aplicativo (Modo Fofoqueiro)
-        run: flet build apk --verbose
+        run: flet build apk. --verbose
 
       - name: 📤 Salvando o APK Pronto!
         uses: actions/upload-artifact@v4
