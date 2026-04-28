@@ -243,31 +243,81 @@ def main(page: ft.Page):
 
                     carregar_campanhas_admin()
 
-                    campo_perg_txt = ft.TextField(label="Pergunta", multiline=True); campo_perg_img = ft.TextField(label="URL Imagem (Opcional)", read_only=True); estado_app["campo_img_quiz"] = campo_perg_img
+                                        campo_perg_txt = ft.TextField(label="Pergunta", multiline=True); campo_perg_img = ft.TextField(label="URL Imagem (Opcional)", read_only=True); estado_app["campo_img_quiz"] = campo_perg_img
                     campo_opt_a = ft.TextField(label="A)"); campo_opt_b = ft.TextField(label="B)"); campo_opt_c = ft.TextField(label="C)"); campo_opt_d = ft.TextField(label="D)")
                     dd_certa = ft.Dropdown(label="Resposta", options=[ft.dropdown.Option("A"), ft.dropdown.Option("B"), ft.dropdown.Option("C"), ft.dropdown.Option("D")]); campo_pts = ft.TextField(label="Pts", value="10", width=80)
 
                     def abrir_foto_quiz(e): estado_app["destino_upload"] = "quiz"; selecionador_arquivos.pick_files(file_type=ft.FilePickerFileType.IMAGE)
 
-                    def salvar_pergunta(e):
+                    # --- NOVA LÓGICA DE LISTA DE PERGUNTAS E LANÇAR QUIZ ---
+                    perguntas_temp = []
+                    lista_perguntas_temp = ft.ListView(height=120, spacing=5)
+
+                    def atualizar_lista_temp():
+                        lista_perguntas_temp.controls.clear()
+                        for i, p in enumerate(perguntas_temp):
+                            lista_perguntas_temp.controls.append(
+                                ft.Container(padding=5, bgcolor=ft.Colors.BLACK87, border_radius=5, content=ft.Row([
+                                    ft.Text(f"{i+1}. {p['pergunta'][:25]}...", color=ft.Colors.WHITE, expand=True),
+                                    ft.IconButton(ft.Icons.DELETE, icon_color=ft.Colors.RED_400, on_click=lambda e, idx=i: remover_pergunta_temp(idx))
+                                ]))
+                            )
+                        page.update()
+
+                    def remover_pergunta_temp(idx):
+                        perguntas_temp.pop(idx)
+                        atualizar_lista_temp()
+
+                    def adicionar_pergunta_temp(e):
                         if not dd_perg_campanha.value or not campo_perg_txt.value or not campo_opt_a.value or not dd_certa.value:
                             page.snack_bar = ft.SnackBar(ft.Text("Preencha os campos da pergunta!")); page.snack_bar.open = True; page.update(); return
-                        try:
-                            supabase.table("quiz_perguntas").insert({"id_campanha": int(dd_perg_campanha.value), "pergunta": campo_perg_txt.value, "imagem_url": campo_perg_img.value, "opcao_a": campo_opt_a.value, "opcao_b": campo_opt_b.value, "opcao_c": campo_opt_c.value, "opcao_d": campo_opt_d.value, "resposta_correta": dd_certa.value, "pontos": int(campo_pts.value)}).execute()
-                            page.snack_bar = ft.SnackBar(ft.Text("✅ Pergunta Salva!")); page.snack_bar.open = True
-                            campo_perg_txt.value = ""; campo_perg_img.value = ""; campo_opt_a.value = ""; campo_opt_b.value = ""; campo_opt_c.value = ""; campo_opt_d.value = ""; page.update()
-                        except Exception as ex: print(ex)
+                        
+                        pergunta_dict = {
+                            "id_campanha": int(dd_perg_campanha.value),
+                            "pergunta": campo_perg_txt.value,
+                            "imagem_url": campo_perg_img.value,
+                            "opcao_a": campo_opt_a.value,
+                            "opcao_b": campo_opt_b.value,
+                            "opcao_c": campo_opt_c.value,
+                            "opcao_d": campo_opt_d.value,
+                            "resposta_correta": dd_certa.value,
+                            "pontos": int(campo_pts.value)
+                        }
+                        perguntas_temp.append(pergunta_dict)
+                        
+                        campo_perg_txt.value = ""; campo_perg_img.value = ""; campo_opt_a.value = ""; campo_opt_b.value = ""; campo_opt_c.value = ""; campo_opt_d.value = ""
+                        atualizar_lista_temp()
+                        page.snack_bar = ft.SnackBar(ft.Text("✅ Pergunta guardada na lista!")); page.snack_bar.open = True
+                        page.update()
 
-                    # APOLINÁRIO: AQUI ENTRA A MÁGICA DO 'wrap=True' PARA NÃO CORTAR NADA NA TELA EM PÉ!
+                    def lancar_quiz(e):
+                        if not perguntas_temp:
+                            page.snack_bar = ft.SnackBar(ft.Text("Adicione pelo menos uma pergunta antes de lançar!")); page.snack_bar.open = True; page.update(); return
+                        try:
+                            # Dispara o pacote completo de perguntas de uma só vez para o Supabase!
+                            supabase.table("quiz_perguntas").insert(perguntas_temp).execute()
+                            perguntas_temp.clear()
+                            atualizar_lista_temp()
+                            page.snack_bar = ft.SnackBar(ft.Text("🚀 Quiz Lançado com Sucesso no App!"), bgcolor=ft.Colors.GREEN_600); page.snack_bar.open = True
+                            page.update()
+                        except Exception as ex:
+                            page.snack_bar = ft.SnackBar(ft.Text(f"Erro ao lançar: {ex}")); page.snack_bar.open = True; page.update()
+
+                    # APOLINÁRIO: AQUI ENTRA A MÁGICA COM OS NOVOS BOTÕES E A LISTA VISUAL!
                     bloco_admin_quiz.controls.append(ft.Container(padding=15, bgcolor=ft.Colors.GREY_900, border_radius=10, border=ft.border.all(1, ft.Colors.BLUE_400), content=ft.Column([
                         ft.Text("⚙️ Fábrica de Desafios", weight="bold", color=ft.Colors.BLUE_400, size=18),
                         campo_camp_tit, ft.Row([campo_camp_data, dd_camp_turma], wrap=True), btn_salvar_camp,
                         ft.Text("Gerenciar Quizzes", color=ft.Colors.GREY_400, size=12), lista_campanhas_criadas, ft.Divider(color=ft.Colors.GREY_800),
-                        ft.Text("➕ Adicionar Pergunta", weight="bold", color=ft.Colors.AMBER_400),
+                        ft.Text("➕ Criar Perguntas", weight="bold", color=ft.Colors.AMBER_400),
                         dd_perg_campanha, campo_perg_txt, ft.Row([ft.ElevatedButton("📷 Imagem", on_click=abrir_foto_quiz), ft.Container(content=campo_perg_img, expand=True)]),
                         ft.Row([campo_opt_a, campo_opt_b], wrap=True), ft.Row([campo_opt_c, campo_opt_d], wrap=True), ft.Row([dd_certa, campo_pts], wrap=True),
-                        ft.ElevatedButton("SALVAR PERGUNTA", on_click=salvar_pergunta, bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE)
+                        ft.Row([
+                            ft.ElevatedButton("➕ ADICIONAR PERGUNTA", on_click=adicionar_pergunta_temp, bgcolor=ft.Colors.AMBER_600, color=ft.Colors.BLACK),
+                        ], alignment=ft.MainAxisAlignment.CENTER),
+                        ft.Container(padding=5, content=lista_perguntas_temp),
+                        ft.ElevatedButton("🚀 LANÇAR QUIZ", on_click=lancar_quiz, bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE, width=400)
                     ])))
+
 
                 conteudo_desafios = ft.Container(padding=20, content=ft.ListView(expand=True, controls=[ft.Text("Desafio Atual", size=20, weight="bold"), cartao_quiz_jogar, ft.Divider(color=ft.Colors.TRANSPARENT), bloco_admin_quiz]))
                 
