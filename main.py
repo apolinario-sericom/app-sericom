@@ -326,7 +326,6 @@ def main(page: ft.Page):
                             page.snack_bar.open = True
                             page.update()
 
-                    # APOLINÁRIO: AQUI ENTRA A MÁGICA COM OS NOVOS BOTÕES E A LISTA VISUAL!
                     bloco_admin_quiz.controls.append(ft.Container(padding=15, bgcolor=ft.Colors.GREY_900, border_radius=10, border=ft.border.all(1, ft.Colors.BLUE_400), content=ft.Column([
                         ft.Text("⚙️ Fábrica de Desafios", weight="bold", color=ft.Colors.BLUE_400, size=18),
                         campo_camp_tit, ft.Row([campo_camp_data, dd_camp_turma], wrap=True), btn_salvar_camp,
@@ -458,8 +457,49 @@ def main(page: ft.Page):
                         except: pass
                     return ft.Container(padding=10, expand=True, content=lista_turma)
 
+                # --- NOVO: RANKING POR TURMA PARA O ADMIN (ESPIÃO DE TURMAS) ---
+                def criar_tela_ranking_turmas_admin():
+                    lista = ft.ListView(expand=True, spacing=10, padding=10)
+                    lista.controls.append(ft.Text("🕵️‍♂️ Espião de Turmas (Admin)", size=20, weight="bold", text_align="center", color=ft.Colors.AMBER))
+                    
+                    dd_turmas_rank = ft.Dropdown(label="Escolha a Turma para espionar", border_color=ft.Colors.AMBER_400, options=[])
+                    container_rank = ft.Container(padding=10)
+                    
+                    try:
+                        res_todas = supabase.table("arena_usuarios").select("turma").execute()
+                        t_unicas = list(set([t.get('turma') for t in res_todas.data if t.get('turma')])) if res_todas.data else []
+                        dd_turmas_rank.options = [ft.dropdown.Option(t) for t in t_unicas]
+                    except: pass
+
+                    def carregar_rank_turma(e):
+                        if not dd_turmas_rank.value: return
+                        turma_sel = dd_turmas_rank.value
+                        lista_rank = ft.Column(spacing=5)
+                        try:
+                            res = supabase.table("arena_usuarios").select("nome_aluno, pontos_turma, foto_url").eq("turma", turma_sel).order("pontos_turma", desc=True).execute()
+                            if res.data:
+                                tem_aluno = False
+                                for i, al in enumerate(res.data):
+                                    pts = al.get('pontos_turma') or 0
+                                    if pts <= 0: continue
+                                    tem_aluno = True
+                                    cor_podio = ft.Colors.AMBER_900 if i == 0 else ft.Colors.GREY_800
+                                    foto = ft.Image(src=al.get('foto_url'), width=30, height=30, fit=ft.ImageFit.COVER, border_radius=15) if al.get('foto_url') else ft.Icon(ft.Icons.PERSON)
+                                    lista_rank.controls.append(ft.Container(bgcolor=cor_podio, padding=15, border_radius=10, border=ft.border.all(1, ft.Colors.AMBER_600) if i==0 else None, content=ft.Row([ft.Text(f"{i+1}º"), foto, ft.Text(al.get('nome_aluno',''), expand=True), ft.Text(f"{pts} pts", color=ft.Colors.GREEN_400, weight="bold")])))
+                                if not tem_aluno:
+                                    lista_rank.controls.append(ft.Text("Ninguém desta turma pontuou ainda.", text_align="center", color=ft.Colors.GREY_500))
+                        except Exception as ex: print(ex)
+                        container_rank.content = lista_rank
+                        page.update()
+
+                    dd_turmas_rank.on_change = carregar_rank_turma
+                    lista.controls.append(ft.Container(padding=15, bgcolor=ft.Colors.GREY_900, border_radius=10, border=ft.border.all(1, ft.Colors.AMBER_400), content=ft.Column([dd_turmas_rank])))
+                    lista.controls.append(container_rank)
+                    return ft.Container(padding=10, expand=True, content=lista)
+
                 conteudo_rank_geral = criar_lista_ranking_geral()
                 conteudo_rank_turma = criar_tela_turma()
+                conteudo_rank_admin = criar_tela_ranking_turmas_admin() if is_admin else ft.Container()
 
                 # --- AVISOS ---
                 estado_aviso = {"editando_id": None}
@@ -639,21 +679,31 @@ def main(page: ft.Page):
                     if aba == "desafios": area_conteudo.content = conteudo_desafios
                     elif aba == "rank_geral": area_conteudo.content = conteudo_rank_geral
                     elif aba == "rank_turma": area_conteudo.content = conteudo_rank_turma
+                    elif aba == "rank_admin": area_conteudo.content = conteudo_rank_admin
                     elif aba == "avisos": area_conteudo.content = criar_tela_avisos()
                     elif aba == "financeiro": area_conteudo.content = criar_tela_financeiro()
                     elif aba == "mural": area_conteudo.content = criar_tela_mural()
                     elif aba == "galeria": area_conteudo.content = criar_tela_galeria()
                     page.update()
 
-                menu_raiz = ft.Row(scroll="auto", alignment="spaceEvenly", controls=[
+                botoes_menu = [
                     ft.TextButton("🎯 Quiz", data="desafios", on_click=mudar_aba, style=ft.ButtonStyle(color=ft.Colors.WHITE)),
                     ft.TextButton("🌟 Lenda", data="rank_geral", on_click=mudar_aba, style=ft.ButtonStyle(color=ft.Colors.WHITE)),
-                    ft.TextButton("👥 Turma", data="rank_turma", on_click=mudar_aba, style=ft.ButtonStyle(color=ft.Colors.WHITE)),
+                    ft.TextButton("👥 Turma", data="rank_turma", on_click=mudar_aba, style=ft.ButtonStyle(color=ft.Colors.WHITE))
+                ]
+                
+                # SÓ O ADMIN ENXERGA ESSE BOTÃO:
+                if is_admin:
+                    botoes_menu.append(ft.TextButton("🏆 Top Turmas", data="rank_admin", on_click=mudar_aba, style=ft.ButtonStyle(color=ft.Colors.AMBER)))
+                
+                botoes_menu.extend([
                     ft.TextButton("✨ Galeria", data="galeria", on_click=mudar_aba, style=ft.ButtonStyle(color=ft.Colors.AMBER_300)),
                     ft.TextButton("🔔 Avisos", data="avisos", on_click=mudar_aba, style=ft.ButtonStyle(color=ft.Colors.WHITE)),
                     ft.TextButton("💰 Carnê", data="financeiro", on_click=mudar_aba, style=ft.ButtonStyle(color=ft.Colors.WHITE)),
                     ft.TextButton("🌐 Social", data="mural", on_click=mudar_aba, style=ft.ButtonStyle(color=ft.Colors.AMBER))
                 ])
+
+                menu_raiz = ft.Row(scroll="auto", alignment="spaceEvenly", controls=botoes_menu)
 
                 def abrir_gal_perfil(e): estado_app["destino_upload"] = "perfil"; selecionador_arquivos.pick_files(file_type=ft.FilePickerFileType.IMAGE)
                 
