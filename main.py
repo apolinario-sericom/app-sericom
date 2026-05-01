@@ -170,7 +170,6 @@ def main(page: ft.Page):
                     if res_campanhas.data:
                         for c in res_campanhas.data:
                             try:
-                                # APOLINÁRIO: FAXINEIRO E TRATAMENTO BLINDADO AQUI!
                                 data_str = str(c.get('data_limite', '')).strip()
                                 if len(data_str) <= 10: data_str += " 23:59:59"
                                 try: data_limite = datetime.strptime(data_str, "%d/%m/%Y %H:%M:%S")
@@ -178,7 +177,6 @@ def main(page: ft.Page):
                                 
                                 alvo = str(c.get('publico_alvo', 'Todos')).strip()
                                 minha_turma = str(aluno_dados.get('turma', '')).strip()
-                                # O faxineiro garante que não fique espaço quebrando a checagem
                                 alvo_lista = [t.strip() for t in alvo.split(',')]
                                 
                                 ta_liberado = is_admin or (alvo == "Todos") or (minha_turma in alvo_lista)
@@ -188,11 +186,34 @@ def main(page: ft.Page):
                             except Exception as erro_interno: print("Erro quiz:", erro_interno)
                 except Exception as e: print("Erro desafios:", e)
 
-                titulo_desafio = desafios_disponiveis[0]['titulo'] if desafios_disponiveis else ("Sem desafios" if is_admin else "Nenhum pendente")
-                texto_status = ("Clique para testar." if is_admin else "Valendo Pontos!") if desafios_disponiveis else "Volte depois."
-                cor_status = (ft.Colors.AMBER_400 if is_admin else ft.Colors.GREEN_400) if desafios_disponiveis else ft.Colors.GREY_500
-                acao_clique = (lambda _: iniciar_quiz(desafios_disponiveis[0]['id'], aluno_dados)) if desafios_disponiveis else None
-                cartao_quiz_jogar = ft.Card(content=ft.Container(padding=15, on_click=acao_clique, content=ft.Column([ft.Text(titulo_desafio, weight="bold", size=16), ft.Text(texto_status, color=cor_status)])))
+                # APOLINÁRIO: FIM DO GARGALO! AGORA MOSTRA TODOS OS DESAFIOS NUMA LISTA
+                cartoes_desafios = ft.Column(spacing=10)
+                if desafios_disponiveis:
+                    for d in desafios_disponiveis:
+                        cartoes_desafios.controls.append(
+                            ft.Card(
+                                content=ft.Container(
+                                    padding=15, 
+                                    on_click=lambda e, cid=d['id']: iniciar_quiz(cid, aluno_dados), 
+                                    content=ft.Column([
+                                        ft.Text(d['titulo'], weight="bold", size=16), 
+                                        ft.Text("Clique para testar." if is_admin else "Valendo Pontos!", color=ft.Colors.AMBER_400 if is_admin else ft.Colors.GREEN_400)
+                                    ])
+                                )
+                            )
+                        )
+                else:
+                    cartoes_desafios.controls.append(
+                        ft.Card(
+                            content=ft.Container(
+                                padding=15, 
+                                content=ft.Column([
+                                    ft.Text("Sem desafios" if is_admin else "Nenhum pendente", weight="bold", size=16), 
+                                    ft.Text("Volte depois.", color=ft.Colors.GREY_500)
+                                ])
+                            )
+                        )
+                    )
 
                 bloco_admin_quiz = ft.Column()
                 if is_admin:
@@ -318,7 +339,6 @@ def main(page: ft.Page):
                         turmas_selecionadas = [cb.label.strip() for cb in lista_checkboxes_turmas.controls if cb.value]
                         publico_str = ", ".join(turmas_selecionadas) if turmas_selecionadas else "Todos"
                         
-                        # APOLINÁRIO: SEGURANÇA PARA A DATA NÃO FICAR VENCIDA
                         data_digitada = campo_camp_data.value.strip()
                         if len(data_digitada) <= 10: data_digitada += " 23:59:59"
                         try:
@@ -445,7 +465,8 @@ def main(page: ft.Page):
                         ft.ElevatedButton("🚀 LANÇAR PERGUNTAS DA FILA", on_click=lancar_quiz, bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE, width=400)
                     ])))
 
-                conteudo_desafios = ft.Container(padding=20, content=ft.ListView(expand=True, controls=[ft.Text("Desafio Atual", size=20, weight="bold"), cartao_quiz_jogar, ft.Divider(color=ft.Colors.TRANSPARENT), bloco_admin_quiz]))
+                # APOLINÁRIO: LISTA DE DESAFIOS ATUALIZADA AQUI!
+                conteudo_desafios = ft.Container(padding=20, content=ft.ListView(expand=True, controls=[ft.Text("Desafios Disponíveis", size=20, weight="bold"), cartoes_desafios, ft.Divider(color=ft.Colors.TRANSPARENT), bloco_admin_quiz]))
                 
                 # --- RANKING E TURMA ---
                 def criar_lista_ranking_geral():
