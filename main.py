@@ -170,11 +170,22 @@ def main(page: ft.Page):
                     if res_campanhas.data:
                         for c in res_campanhas.data:
                             try:
-                                data_limite = datetime.strptime(c.get('data_limite', '01/01/2099 00:00:00'), "%d/%m/%Y %H:%M:%S")
-                                alvo = c.get('publico_alvo', 'Todos')
-                                if is_admin or alvo == "Todos" or aluno_dados.get('turma') in alvo:
-                                    if data_limite > agora and str(c['id']) not in camp_feitas: desafios_disponiveis.append(c)
-                            except: pass
+                                # APOLINÁRIO: FAXINEIRO E TRATAMENTO BLINDADO AQUI!
+                                data_str = str(c.get('data_limite', '')).strip()
+                                if len(data_str) <= 10: data_str += " 23:59:59"
+                                try: data_limite = datetime.strptime(data_str, "%d/%m/%Y %H:%M:%S")
+                                except: data_limite = datetime.strptime("01/01/2099 23:59:59", "%d/%m/%Y %H:%M:%S")
+                                
+                                alvo = str(c.get('publico_alvo', 'Todos')).strip()
+                                minha_turma = str(aluno_dados.get('turma', '')).strip()
+                                # O faxineiro garante que não fique espaço quebrando a checagem
+                                alvo_lista = [t.strip() for t in alvo.split(',')]
+                                
+                                ta_liberado = is_admin or (alvo == "Todos") or (minha_turma in alvo_lista)
+                                
+                                if ta_liberado and data_limite > agora and str(c['id']) not in camp_feitas: 
+                                    desafios_disponiveis.append(c)
+                            except Exception as erro_interno: print("Erro quiz:", erro_interno)
                 except Exception as e: print("Erro desafios:", e)
 
                 titulo_desafio = desafios_disponiveis[0]['titulo'] if desafios_disponiveis else ("Sem desafios" if is_admin else "Nenhum pendente")
@@ -185,20 +196,19 @@ def main(page: ft.Page):
 
                 bloco_admin_quiz = ft.Column()
                 if is_admin:
-                    # APOLINÁRIO: LISTVIEW PRA ROLAR TODAS AS TURMAS SEM CORTAR
                     lista_checkboxes_turmas = ft.ListView(height=250, spacing=2)
                     try:
                         res_todas_t = supabase.table("arena_usuarios").select("turma").execute()
-                        turmas_unicas = sorted(list(set([t.get('turma') for t in res_todas_t.data if t.get('turma')])))
+                        turmas_unicas = sorted(list(set([str(t.get('turma')).strip() for t in res_todas_t.data if t.get('turma')])))
                         for t in turmas_unicas:
-                            lista_checkboxes_turmas.controls.append(ft.Checkbox(label=t, value=False, fill_color=ft.Colors.BLUE_400))
+                            if t: lista_checkboxes_turmas.controls.append(ft.Checkbox(label=t, value=False, fill_color=ft.Colors.BLUE_400))
                     except: pass
 
                     estado_quiz_admin = {"editando_id": None, "editando_pergunta_id": None}
                     campo_camp_tit = ft.TextField(label="Título da Campanha", border_color=ft.Colors.BLUE_400)
                     data_exemplo = (datetime.now() + timedelta(days=7)).strftime("%d/%m/%Y 23:59:59")
                     campo_camp_data = ft.TextField(label="Data Limite", value=data_exemplo, border_color=ft.Colors.BLUE_400)
-                    btn_salvar_camp = ft.ElevatedButton("SALVAR CAMPANHA", bgcolor=ft.Colors.BLUE_600, color=ft.Colors.WHITE)
+                    btn_salvar_camp = ft.ElevatedButton("SALVAR NOVA CAMPANHA", bgcolor=ft.Colors.BLUE_600, color=ft.Colors.WHITE)
                     
                     lista_campanhas_criadas = ft.ListView(height=150, spacing=5)
                     
@@ -295,26 +305,41 @@ def main(page: ft.Page):
                         estado_quiz_admin["editando_id"] = camp['id']
                         campo_camp_tit.value = camp['titulo']
                         campo_camp_data.value = camp['data_limite']
-                        alvos = camp.get('publico_alvo', '').split(", ")
+                        alvos = [x.strip() for x in str(camp.get('publico_alvo', '')).split(",")]
                         for cb in lista_checkboxes_turmas.controls:
-                            cb.value = cb.label in alvos
-                        # APOLINÁRIO: BOTÃO DE RELANÇAR CLARO COMO A ÁGUA AQUI!
-                        btn_salvar_camp.text = "💾 ATUALIZAR / RELANÇAR PARA TURMAS"
+                            cb.value = cb.label.strip() in alvos
+                        btn_salvar_camp.text = "💾 SALVAR EDIÇÃO E RELANÇAR"
                         btn_salvar_camp.bgcolor = ft.Colors.ORANGE_600
                         carregar_perguntas_do_banco(camp['id'])
                         page.update()
 
                     def salvar_nova_campanha(e):
                         if not campo_camp_tit.value: return
-                        turmas_selecionadas = [cb.label for cb in lista_checkboxes_turmas.controls if cb.value]
+                        turmas_selecionadas = [cb.label.strip() for cb in lista_checkboxes_turmas.controls if cb.value]
                         publico_str = ", ".join(turmas_selecionadas) if turmas_selecionadas else "Todos"
+                        
+                        # APOLINÁRIO: SEGURANÇA PARA A DATA NÃO FICAR VENCIDA
+                        data_digitada = campo_camp_data.value.strip()
+                        if len(data_digitada) <= 10: data_digitada += " 23:59:59"
+                        try:
+                            valida_data = datetime.strptime(data_digitada, "%d/%m/%Y %H:%M:%S")
+                            if valida_data < datetime.now():
+                                page.snack_bar = ft.SnackBar(ft.Text("⚠️ Atenção: A data limite já passou! Coloque uma data no futuro pra turma poder ver."), bgcolor=ft.Colors.RED_600)
+                                page.snack_bar.open = True
+                                page.update()
+                                return
+                        except:
+                            page.snack_bar = ft.SnackBar(ft.Text("⚠️ Formato de data inválido! Use DD/MM/AAAA ou DD/MM/AAAA HH:MM:SS"), bgcolor=ft.Colors.RED_600)
+                            page.snack_bar.open = True
+                            page.update()
+                            return
                         
                         try:
                             if estado_quiz_admin["editando_id"]:
-                                supabase.table("quiz_campanhas").update({"titulo": campo_camp_tit.value, "data_limite": campo_camp_data.value, "publico_alvo": publico_str}).eq("id", estado_quiz_admin["editando_id"]).execute()
-                                estado_quiz_admin["editando_id"] = None; btn_salvar_camp.text = "SALVAR CAMPANHA"; btn_salvar_camp.bgcolor = ft.Colors.BLUE_600; page.snack_bar = ft.SnackBar(ft.Text("✅ Campanha Relançada/Atualizada!"))
+                                supabase.table("quiz_campanhas").update({"titulo": campo_camp_tit.value, "data_limite": data_digitada, "publico_alvo": publico_str}).eq("id", estado_quiz_admin["editando_id"]).execute()
+                                estado_quiz_admin["editando_id"] = None; btn_salvar_camp.text = "SALVAR NOVA CAMPANHA"; btn_salvar_camp.bgcolor = ft.Colors.BLUE_600; page.snack_bar = ft.SnackBar(ft.Text("✅ Quiz Relançado para as novas turmas com sucesso!"))
                             else:
-                                supabase.table("quiz_campanhas").insert({"titulo": campo_camp_tit.value, "data_limite": campo_camp_data.value, "publico_alvo": publico_str}).execute(); page.snack_bar = ft.SnackBar(ft.Text("✅ Campanha Criada!"))
+                                supabase.table("quiz_campanhas").insert({"titulo": campo_camp_tit.value, "data_limite": data_digitada, "publico_alvo": publico_str}).execute(); page.snack_bar = ft.SnackBar(ft.Text("✅ Campanha Criada!"))
                             
                             campo_camp_tit.value = ""
                             for cb in lista_checkboxes_turmas.controls: cb.value = False
@@ -350,7 +375,6 @@ def main(page: ft.Page):
                             page.snack_bar = ft.SnackBar(ft.Text("Preencha os campos da pergunta!")); page.snack_bar.open = True; page.update(); return
                         
                         if estado_quiz_admin["editando_pergunta_id"]:
-                            # APOLINÁRIO: SALVA A EDIÇÃO DIRETO NO BANCO
                             try:
                                 supabase.table("quiz_perguntas").update({
                                     "pergunta": campo_perg_txt.value,
@@ -372,7 +396,6 @@ def main(page: ft.Page):
                                 page.snack_bar = ft.SnackBar(ft.Text("✅ Edição Salva no Banco!"), bgcolor=ft.Colors.GREEN_600); page.snack_bar.open = True; page.update()
                             except Exception as ex: print(ex)
                         else:
-                            # APOLINÁRIO: ADICIONA NA FILA TEMP PRA LANÇAR DEPOIS
                             pergunta_dict = {
                                 "id_campanha": int(dd_perg_campanha.value),
                                 "pergunta": campo_perg_txt.value,
@@ -773,7 +796,6 @@ def main(page: ft.Page):
                     ft.TextButton("👥 Turma", data="rank_turma", on_click=mudar_aba, style=ft.ButtonStyle(color=ft.Colors.WHITE))
                 ]
                 
-                # SÓ O ADMIN ENXERGA ESSE BOTÃO:
                 if is_admin:
                     botoes_menu.append(ft.TextButton("🏆 Top Turmas", data="rank_admin", on_click=mudar_aba, style=ft.ButtonStyle(color=ft.Colors.AMBER)))
                 
