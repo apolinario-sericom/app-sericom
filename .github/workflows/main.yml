@@ -32,7 +32,7 @@ jobs:
         run: pip install flet==0.25.2 supabase
 
       - name: 🚀 Construindo o Aplicativo (Modo Fofoqueiro)
-        run: flet build apk . --verbose
+        run: flet build apk . --product "Portal Sericom" --verbose
 
       - name: 📤 Salvando o APK Pronto!
         uses: actions/upload-artifact@v4
