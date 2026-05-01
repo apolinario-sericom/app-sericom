@@ -172,7 +172,6 @@ def main(page: ft.Page):
                             try:
                                 data_limite = datetime.strptime(c.get('data_limite', '01/01/2099 00:00:00'), "%d/%m/%Y %H:%M:%S")
                                 alvo = c.get('publico_alvo', 'Todos')
-                                # APOLINÁRIO: A lógica de checar MÚLTIPLAS turmas aqui!
                                 if is_admin or alvo == "Todos" or aluno_dados.get('turma') in alvo:
                                     if data_limite > agora and str(c['id']) not in camp_feitas: desafios_disponiveis.append(c)
                             except: pass
@@ -186,8 +185,8 @@ def main(page: ft.Page):
 
                 bloco_admin_quiz = ft.Column()
                 if is_admin:
-                    # --- NOVO SISTEMA DE TURMAS (CHECKBOXES) ---
-                    lista_checkboxes_turmas = ft.Column(spacing=0)
+                    # APOLINÁRIO: LISTVIEW PRA ROLAR TODAS AS TURMAS SEM CORTAR
+                    lista_checkboxes_turmas = ft.ListView(height=250, spacing=2)
                     try:
                         res_todas_t = supabase.table("arena_usuarios").select("turma").execute()
                         turmas_unicas = sorted(list(set([t.get('turma') for t in res_todas_t.data if t.get('turma')])))
@@ -195,52 +194,68 @@ def main(page: ft.Page):
                             lista_checkboxes_turmas.controls.append(ft.Checkbox(label=t, value=False, fill_color=ft.Colors.BLUE_400))
                     except: pass
 
-                    estado_quiz_admin = {"editando_id": None}
+                    estado_quiz_admin = {"editando_id": None, "editando_pergunta_id": None}
                     campo_camp_tit = ft.TextField(label="Título da Campanha", border_color=ft.Colors.BLUE_400)
                     data_exemplo = (datetime.now() + timedelta(days=7)).strftime("%d/%m/%Y 23:59:59")
                     campo_camp_data = ft.TextField(label="Data Limite", value=data_exemplo, border_color=ft.Colors.BLUE_400)
                     btn_salvar_camp = ft.ElevatedButton("SALVAR CAMPANHA", bgcolor=ft.Colors.BLUE_600, color=ft.Colors.WHITE)
                     
                     lista_campanhas_criadas = ft.ListView(height=150, spacing=5)
-                    dd_perg_campanha = ft.Dropdown(label="Vincular à Campanha", options=[])
                     
                     perguntas_temp = []
                     lista_perguntas_temp = ft.ListView(height=120, spacing=5)
                     txt_contador_temp = ft.Text("Perguntas na fila: 0", color=ft.Colors.AMBER_400, weight="bold")
                     
-                    lista_perguntas_no_banco = ft.ListView(height=150, spacing=5)
+                    lista_perguntas_no_banco = ft.ListView(height=200, spacing=5)
                     area_perguntas_banco = ft.Column([
                         ft.Text("📝 Perguntas Atuais no Banco", weight="bold", color=ft.Colors.BLUE_200),
                         lista_perguntas_no_banco
                     ], visible=False)
 
-                    def atualizar_lista_temp():
-                        lista_perguntas_temp.controls.clear()
-                        txt_contador_temp.value = f"Perguntas na fila: {len(perguntas_temp)}"
-                        for i, p in enumerate(perguntas_temp):
-                            lista_perguntas_temp.controls.append(
-                                ft.Container(padding=5, bgcolor=ft.Colors.BLACK87, border_radius=5, content=ft.Row([
-                                    ft.Text(f"{i+1}. {p['pergunta'][:25]}...", color=ft.Colors.WHITE, expand=True),
-                                    ft.IconButton(ft.Icons.DELETE, icon_color=ft.Colors.RED_400, on_click=lambda e, idx=i: remover_pergunta_temp(idx))
-                                ]))
-                            )
-                        page.update()
+                    # --- VARIÁVEIS DA PERGUNTA ---
+                    campo_perg_txt = ft.TextField(label="Pergunta", multiline=True)
+                    campo_perg_img = ft.TextField(label="URL Imagem (Opcional)", read_only=True)
+                    estado_app["campo_img_quiz"] = campo_perg_img
+                    campo_opt_a = ft.TextField(label="A)")
+                    campo_opt_b = ft.TextField(label="B)")
+                    campo_opt_c = ft.TextField(label="C)")
+                    campo_opt_d = ft.TextField(label="D)")
+                    dd_certa = ft.Dropdown(label="Resposta", options=[ft.dropdown.Option("A"), ft.dropdown.Option("B"), ft.dropdown.Option("C"), ft.dropdown.Option("D")])
+                    campo_pts = ft.TextField(label="Pts", value="10", width=80)
+                    btn_adicionar_pergunta = ft.ElevatedButton("➕ ADICIONAR PERGUNTA", bgcolor=ft.Colors.AMBER_600, color=ft.Colors.BLACK)
 
                     def carregar_perguntas_do_banco(cid):
                         lista_perguntas_no_banco.controls.clear()
                         try:
-                            res = supabase.table("quiz_perguntas").select("*").eq("id_campanha", cid).execute()
+                            res = supabase.table("quiz_perguntas").select("*").eq("id_campanha", cid).order("id").execute()
                             if res.data:
                                 area_perguntas_banco.visible = True
                                 for p in res.data:
                                     lista_perguntas_no_banco.controls.append(
                                         ft.Container(padding=5, bgcolor=ft.Colors.GREY_800, border_radius=5, content=ft.Row([
                                             ft.Text(f"• {p['pergunta'][:30]}...", size=12, expand=True),
+                                            ft.IconButton(ft.Icons.EDIT, icon_color=ft.Colors.ORANGE_400, icon_size=18, on_click=lambda e, p_completa=p: carregar_edicao_pergunta(p_completa)),
                                             ft.IconButton(ft.Icons.DELETE_FOREVER, icon_color=ft.Colors.RED_700, icon_size=18, on_click=lambda e, pid=p['id']: deletar_pergunta_banco(pid, cid))
                                         ]))
                                     )
                             else: area_perguntas_banco.visible = False
                         except: pass
+                        page.update()
+
+                    dd_perg_campanha = ft.Dropdown(label="Vincular à Campanha", options=[], on_change=lambda e: carregar_perguntas_do_banco(int(e.control.value)) if e.control.value else None)
+
+                    def carregar_edicao_pergunta(p):
+                        estado_quiz_admin["editando_pergunta_id"] = p['id']
+                        campo_perg_txt.value = p['pergunta']
+                        campo_perg_img.value = p.get('imagem_url', '')
+                        campo_opt_a.value = p['opcao_a']
+                        campo_opt_b.value = p['opcao_b']
+                        campo_opt_c.value = p['opcao_c']
+                        campo_opt_d.value = p['opcao_d']
+                        dd_certa.value = p['resposta_correta']
+                        campo_pts.value = str(p.get('pontos', 10))
+                        btn_adicionar_pergunta.text = "💾 SALVAR EDIÇÃO DA PERGUNTA"
+                        btn_adicionar_pergunta.bgcolor = ft.Colors.ORANGE_600
                         page.update()
 
                     def deletar_pergunta_banco(pid, cid):
@@ -256,7 +271,9 @@ def main(page: ft.Page):
                             res = supabase.table("quiz_campanhas").select("*").order("id", desc=True).limit(20).execute()
                             if res.data:
                                 dd_perg_campanha.options = [ft.dropdown.Option(text=c['titulo'], key=str(c['id'])) for c in res.data]
-                                if not dd_perg_campanha.value: dd_perg_campanha.value = str(res.data[0]['id'])
+                                if not dd_perg_campanha.value: 
+                                    dd_perg_campanha.value = str(res.data[0]['id'])
+                                    carregar_perguntas_do_banco(res.data[0]['id'])
                                 for c in res.data:
                                     botoes = ft.Row([
                                         ft.IconButton(ft.Icons.EDIT, icon_color=ft.Colors.ORANGE_400, on_click=lambda e, camp=c: preencher_camp(camp)),
@@ -281,7 +298,9 @@ def main(page: ft.Page):
                         alvos = camp.get('publico_alvo', '').split(", ")
                         for cb in lista_checkboxes_turmas.controls:
                             cb.value = cb.label in alvos
-                        btn_salvar_camp.text = "💾 ATUALIZAR CAMPANHA"; btn_salvar_camp.bgcolor = ft.Colors.ORANGE_600
+                        # APOLINÁRIO: BOTÃO DE RELANÇAR CLARO COMO A ÁGUA AQUI!
+                        btn_salvar_camp.text = "💾 ATUALIZAR / RELANÇAR PARA TURMAS"
+                        btn_salvar_camp.bgcolor = ft.Colors.ORANGE_600
                         carregar_perguntas_do_banco(camp['id'])
                         page.update()
 
@@ -293,7 +312,7 @@ def main(page: ft.Page):
                         try:
                             if estado_quiz_admin["editando_id"]:
                                 supabase.table("quiz_campanhas").update({"titulo": campo_camp_tit.value, "data_limite": campo_camp_data.value, "publico_alvo": publico_str}).eq("id", estado_quiz_admin["editando_id"]).execute()
-                                estado_quiz_admin["editando_id"] = None; btn_salvar_camp.text = "SALVAR CAMPANHA"; btn_salvar_camp.bgcolor = ft.Colors.BLUE_600; page.snack_bar = ft.SnackBar(ft.Text("✅ Campanha Atualizada!"))
+                                estado_quiz_admin["editando_id"] = None; btn_salvar_camp.text = "SALVAR CAMPANHA"; btn_salvar_camp.bgcolor = ft.Colors.BLUE_600; page.snack_bar = ft.SnackBar(ft.Text("✅ Campanha Relançada/Atualizada!"))
                             else:
                                 supabase.table("quiz_campanhas").insert({"titulo": campo_camp_tit.value, "data_limite": campo_camp_data.value, "publico_alvo": publico_str}).execute(); page.snack_bar = ft.SnackBar(ft.Text("✅ Campanha Criada!"))
                             
@@ -307,43 +326,70 @@ def main(page: ft.Page):
                     btn_salvar_camp.on_click = salvar_nova_campanha
                     carregar_campanhas_admin()
 
-                    # --- VARIÁVEIS DA PERGUNTA ---
-                    campo_perg_txt = ft.TextField(label="Pergunta", multiline=True)
-                    campo_perg_img = ft.TextField(label="URL Imagem (Opcional)", read_only=True)
-                    estado_app["campo_img_quiz"] = campo_perg_img
-                    campo_opt_a = ft.TextField(label="A)")
-                    campo_opt_b = ft.TextField(label="B)")
-                    campo_opt_c = ft.TextField(label="C)")
-                    campo_opt_d = ft.TextField(label="D)")
-                    dd_certa = ft.Dropdown(label="Resposta", options=[ft.dropdown.Option("A"), ft.dropdown.Option("B"), ft.dropdown.Option("C"), ft.dropdown.Option("D")])
-                    campo_pts = ft.TextField(label="Pts", value="10", width=80)
-
                     def abrir_foto_quiz(e): 
                         estado_app["destino_upload"] = "quiz"
                         selecionador_arquivos.pick_files(file_type=ft.FilePickerFileType.IMAGE)
 
+                    def atualizar_lista_temp():
+                        lista_perguntas_temp.controls.clear()
+                        txt_contador_temp.value = f"Perguntas na fila: {len(perguntas_temp)}"
+                        for i, p in enumerate(perguntas_temp):
+                            lista_perguntas_temp.controls.append(
+                                ft.Container(padding=5, bgcolor=ft.Colors.BLACK87, border_radius=5, content=ft.Row([
+                                    ft.Text(f"{i+1}. {p['pergunta'][:25]}...", color=ft.Colors.WHITE, expand=True),
+                                    ft.IconButton(ft.Icons.DELETE, icon_color=ft.Colors.RED_400, on_click=lambda e, idx=i: remover_pergunta_temp(idx))
+                                ]))
+                            )
+                        page.update()
+
                     def remover_pergunta_temp(idx):
                         perguntas_temp.pop(idx); atualizar_lista_temp()
 
-                    def adicionar_pergunta_temp(e):
+                    def salvar_pergunta_click(e):
                         if not dd_perg_campanha.value or not campo_perg_txt.value or not campo_opt_a.value or not dd_certa.value:
                             page.snack_bar = ft.SnackBar(ft.Text("Preencha os campos da pergunta!")); page.snack_bar.open = True; page.update(); return
                         
-                        pergunta_dict = {
-                            "id_campanha": int(dd_perg_campanha.value),
-                            "pergunta": campo_perg_txt.value,
-                            "imagem_url": campo_perg_img.value,
-                            "opcao_a": campo_opt_a.value,
-                            "opcao_b": campo_opt_b.value,
-                            "opcao_c": campo_opt_c.value,
-                            "opcao_d": campo_opt_d.value,
-                            "resposta_correta": dd_certa.value,
-                            "pontos": int(campo_pts.value)
-                        }
-                        perguntas_temp.append(pergunta_dict)
-                        campo_perg_txt.value = ""; campo_perg_img.value = ""; campo_opt_a.value = ""; campo_opt_b.value = ""; campo_opt_c.value = ""; campo_opt_d.value = ""
-                        atualizar_lista_temp()
-                        page.snack_bar = ft.SnackBar(ft.Text("✅ Pergunta guardada na lista!")); page.snack_bar.open = True; page.update()
+                        if estado_quiz_admin["editando_pergunta_id"]:
+                            # APOLINÁRIO: SALVA A EDIÇÃO DIRETO NO BANCO
+                            try:
+                                supabase.table("quiz_perguntas").update({
+                                    "pergunta": campo_perg_txt.value,
+                                    "imagem_url": campo_perg_img.value,
+                                    "opcao_a": campo_opt_a.value,
+                                    "opcao_b": campo_opt_b.value,
+                                    "opcao_c": campo_opt_c.value,
+                                    "opcao_d": campo_opt_d.value,
+                                    "resposta_correta": dd_certa.value,
+                                    "pontos": int(campo_pts.value)
+                                }).eq("id", estado_quiz_admin["editando_pergunta_id"]).execute()
+                                
+                                estado_quiz_admin["editando_pergunta_id"] = None
+                                btn_adicionar_pergunta.text = "➕ ADICIONAR PERGUNTA"
+                                btn_adicionar_pergunta.bgcolor = ft.Colors.AMBER_600
+                                campo_perg_txt.value = ""; campo_perg_img.value = ""; campo_opt_a.value = ""; campo_opt_b.value = ""; campo_opt_c.value = ""; campo_opt_d.value = ""
+                                
+                                carregar_perguntas_do_banco(int(dd_perg_campanha.value))
+                                page.snack_bar = ft.SnackBar(ft.Text("✅ Edição Salva no Banco!"), bgcolor=ft.Colors.GREEN_600); page.snack_bar.open = True; page.update()
+                            except Exception as ex: print(ex)
+                        else:
+                            # APOLINÁRIO: ADICIONA NA FILA TEMP PRA LANÇAR DEPOIS
+                            pergunta_dict = {
+                                "id_campanha": int(dd_perg_campanha.value),
+                                "pergunta": campo_perg_txt.value,
+                                "imagem_url": campo_perg_img.value,
+                                "opcao_a": campo_opt_a.value,
+                                "opcao_b": campo_opt_b.value,
+                                "opcao_c": campo_opt_c.value,
+                                "opcao_d": campo_opt_d.value,
+                                "resposta_correta": dd_certa.value,
+                                "pontos": int(campo_pts.value)
+                            }
+                            perguntas_temp.append(pergunta_dict)
+                            campo_perg_txt.value = ""; campo_perg_img.value = ""; campo_opt_a.value = ""; campo_opt_b.value = ""; campo_opt_c.value = ""; campo_opt_d.value = ""
+                            atualizar_lista_temp()
+                            page.snack_bar = ft.SnackBar(ft.Text("✅ Pergunta guardada na lista!")); page.snack_bar.open = True; page.update()
+
+                    btn_adicionar_pergunta.on_click = salvar_pergunta_click
 
                     def lancar_quiz(e):
                         if not perguntas_temp:
@@ -352,16 +398,15 @@ def main(page: ft.Page):
                             supabase.table("quiz_perguntas").insert(perguntas_temp).execute()
                             perguntas_temp.clear(); atualizar_lista_temp()
                             if dd_perg_campanha.value: carregar_perguntas_do_banco(int(dd_perg_campanha.value))
-                            page.snack_bar = ft.SnackBar(ft.Text("🚀 Quiz Lançado com Sucesso!"), bgcolor=ft.Colors.GREEN_600); page.snack_bar.open = True; page.update()
+                            page.snack_bar = ft.SnackBar(ft.Text("🚀 Novas Perguntas Lançadas!"), bgcolor=ft.Colors.GREEN_600); page.snack_bar.open = True; page.update()
                         except Exception as ex:
                             page.snack_bar = ft.SnackBar(ft.Text(f"Erro ao lançar: {ex}")); page.snack_bar.open = True; page.update()
 
-                    # APOLINÁRIO: MONTAGEM DO PAINEL ADMIN
                     bloco_admin_quiz.controls.append(ft.Container(padding=15, bgcolor=ft.Colors.GREY_900, border_radius=10, border=ft.border.all(1, ft.Colors.BLUE_400), content=ft.Column([
                         ft.Text("⚙️ Fábrica de Desafios", weight="bold", color=ft.Colors.BLUE_400, size=18),
                         campo_camp_tit, campo_camp_data,
                         ft.Text("Selecione as Turmas:", color=ft.Colors.GREY_400, size=12),
-                        ft.Container(content=lista_checkboxes_turmas, padding=10, bgcolor=ft.Colors.BLACK, border_radius=5, height=150),
+                        ft.Container(content=lista_checkboxes_turmas, padding=10, bgcolor=ft.Colors.BLACK, border_radius=5, height=250),
                         btn_salvar_camp,
                         ft.Divider(color=ft.Colors.GREY_800),
                         ft.Text("Gerenciar Quizzes", color=ft.Colors.GREY_400, size=12), 
@@ -371,7 +416,7 @@ def main(page: ft.Page):
                         ft.Text("➕ Criar Nova Pergunta", weight="bold", color=ft.Colors.AMBER_400),
                         dd_perg_campanha, campo_perg_txt, ft.Row([ft.ElevatedButton("📷 Imagem", on_click=abrir_foto_quiz), ft.Container(content=campo_perg_img, expand=True)]),
                         ft.Row([campo_opt_a, campo_opt_b], wrap=True), ft.Row([campo_opt_c, campo_opt_d], wrap=True), ft.Row([dd_certa, campo_pts], wrap=True),
-                        ft.Row([ft.ElevatedButton("➕ ADICIONAR PERGUNTA", on_click=adicionar_pergunta_temp, bgcolor=ft.Colors.AMBER_600, color=ft.Colors.BLACK)], alignment=ft.MainAxisAlignment.CENTER),
+                        ft.Row([btn_adicionar_pergunta], alignment=ft.MainAxisAlignment.CENTER),
                         txt_contador_temp,
                         ft.Container(padding=5, content=lista_perguntas_temp),
                         ft.ElevatedButton("🚀 LANÇAR PERGUNTAS DA FILA", on_click=lancar_quiz, bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE, width=400)
@@ -494,7 +539,6 @@ def main(page: ft.Page):
                         except: pass
                     return ft.Container(padding=10, expand=True, content=lista_turma)
 
-                # --- NOVO: RANKING POR TURMA PARA O ADMIN (ESPIÃO DE TURMAS) ---
                 def criar_tela_ranking_turmas_admin():
                     lista = ft.ListView(expand=True, spacing=10, padding=10)
                     lista.controls.append(ft.Text("🕵️‍♂️ Espião de Turmas (Admin)", size=20, weight="bold", text_align="center", color=ft.Colors.AMBER))
@@ -743,7 +787,7 @@ def main(page: ft.Page):
                 menu_raiz = ft.Row(scroll="auto", alignment="spaceEvenly", controls=botoes_menu)
 
                 # ==========================================
-                # APOLINÁRIO: SEUS RECURSOS INTACTOS AQUI!
+                # PERFIL E CARTEIRINHA
                 # ==========================================
                 def abrir_gal_perfil(e): estado_app["destino_upload"] = "perfil"; selecionador_arquivos.pick_files(file_type=ft.FilePickerFileType.IMAGE)
                 
@@ -786,7 +830,6 @@ def main(page: ft.Page):
 
                 foto_topo = ft.Image(src=aluno_dados.get('foto_url'), width=35, height=35, fit="cover", border_radius=17.5) if aluno_dados.get('foto_url') else ft.Icon(ft.Icons.ACCOUNT_BOX, color=ft.Colors.WHITE)
                 
-                # APOLINÁRIO: O LOGOUT QUE APAGA A MEMÓRIA TÁ AQUI DE VOLTA!
                 def fazer_logout(e):
                     page.client_storage.remove("sessao_user")
                     page.client_storage.remove("sessao_senha")
@@ -828,7 +871,6 @@ def main(page: ft.Page):
             campo_usuario = ft.TextField(label="Usuário", width=300, border_color=ft.Colors.RED_600); campo_senha = ft.TextField(label="Senha", password=True, can_reveal_password=True, width=300, border_color=ft.Colors.RED_600); texto_erro = ft.Text("", color=ft.Colors.RED_400, size=14)
             page.add(ft.Container(padding=50, alignment=ft.alignment.center, content=ft.Column(horizontal_alignment=ft.CrossAxisAlignment.CENTER, controls=[ft.Icon(name=ft.Icons.LAPTOP_CHROMEBOOK, size=80, color=ft.Colors.RED_600), ft.Text("SERICOM APP", size=35, weight="bold", color=ft.Colors.WHITE), ft.Text("Portal do Aluno", size=16, color=ft.Colors.GREY_400), ft.Divider(height=30, color=ft.Colors.TRANSPARENT), campo_usuario, campo_senha, texto_erro, ft.ElevatedButton("ENTRAR", width=300, height=50, bgcolor=ft.Colors.RED_600, color=ft.Colors.WHITE, on_click=fazer_login)]))); page.update()
             
-            # APOLINÁRIO: O AUTO-LOGIN ESTÁ AQUI DE VOLTA, FIRME E FORTE!
             if page.client_storage.contains_key("sessao_user") and page.client_storage.contains_key("sessao_senha"):
                 campo_usuario.value = page.client_storage.get("sessao_user")
                 campo_senha.value = page.client_storage.get("sessao_senha")
