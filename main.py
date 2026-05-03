@@ -99,7 +99,14 @@ def main(page: ft.Page):
                     p_geral = int(p_atual_geral) + estado_jogo['pontos_ganhos']
                     p_turma = int(p_atual_turma) + estado_jogo['pontos_ganhos']
                     try:
-                        supabase.table("arena_usuarios").update({"pontos": p_geral, "pontos_turma": p_turma}).eq("usuario", aluno_dados['usuario']).execute()
+                        # APOLINÁRIO: Registrando a hora exata que terminou o quiz pro desempate!
+                        agora_iso = datetime.now().isoformat()
+                        supabase.table("arena_usuarios").update({
+                            "pontos": p_geral, 
+                            "pontos_turma": p_turma,
+                            "data_ultima_pontuacao": agora_iso
+                        }).eq("usuario", aluno_dados['usuario']).execute()
+                        
                         aluno_dados['pontos'] = p_geral; aluno_dados['pontos_turma'] = p_turma
                         supabase.table("quiz_historico").insert({"usuario": aluno_dados['usuario'], "id_campanha": str(id_campanha)}).execute()
                     except: pass
@@ -186,7 +193,6 @@ def main(page: ft.Page):
                             except Exception as erro_interno: print("Erro quiz:", erro_interno)
                 except Exception as e: print("Erro desafios:", e)
 
-                # APOLINÁRIO: FIM DO GARGALO! AGORA MOSTRA TODOS OS DESAFIOS NUMA LISTA
                 cartoes_desafios = ft.Column(spacing=10)
                 if desafios_disponiveis:
                     for d in desafios_disponiveis:
@@ -465,7 +471,6 @@ def main(page: ft.Page):
                         ft.ElevatedButton("🚀 LANÇAR PERGUNTAS DA FILA", on_click=lancar_quiz, bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE, width=400)
                     ])))
 
-                # APOLINÁRIO: LISTA DE DESAFIOS ATUALIZADA AQUI!
                 conteudo_desafios = ft.Container(padding=20, content=ft.ListView(expand=True, controls=[ft.Text("Desafios Disponíveis", size=20, weight="bold"), cartoes_desafios, ft.Divider(color=ft.Colors.TRANSPARENT), bloco_admin_quiz]))
                 
                 # --- RANKING E TURMA ---
@@ -473,8 +478,8 @@ def main(page: ft.Page):
                     lista = ft.ListView(expand=True, spacing=10, padding=10)
                     lista.controls.append(ft.Text("Lendas da Sericom", size=20, weight="bold", text_align="center", color=ft.Colors.AMBER))
                     try:
-                        # APOLINÁRIO: Desempate por Ordem Alfabética Adicionado!
-                        res_geral = supabase.table("arena_usuarios").select("nome_aluno, pontos, foto_url").order("pontos", desc=True).order("nome_aluno", desc=False).execute()
+                        # APOLINÁRIO: Desempate Triplo: Pontos > Data de Pontuação > Ordem Alfabética
+                        res_geral = supabase.table("arena_usuarios").select("nome_aluno, pontos, foto_url").order("pontos", desc=True).order("data_ultima_pontuacao", desc=False).order("nome_aluno", desc=False).execute()
                         if res_geral.data:
                             tem_aluno = False
                             for i, al in enumerate(res_geral.data):
@@ -567,8 +572,8 @@ def main(page: ft.Page):
                         
                         lista_turma.controls.append(ft.Text(f"Top da Turma", size=20, weight="bold", text_align="center", color=ft.Colors.AMBER))
                         try:
-                            # APOLINÁRIO: Desempate por Ordem Alfabética Adicionado!
-                            res_turma = supabase.table("arena_usuarios").select("nome_aluno, pontos_turma, foto_url").eq("turma", t_aluno).order("pontos_turma", desc=True).order("nome_aluno", desc=False).execute()
+                            # APOLINÁRIO: Desempate Triplo: Pontos > Data de Pontuação > Ordem Alfabética
+                            res_turma = supabase.table("arena_usuarios").select("nome_aluno, pontos_turma, foto_url").eq("turma", t_aluno).order("pontos_turma", desc=True).order("data_ultima_pontuacao", desc=False).order("nome_aluno", desc=False).execute()
                             if res_turma.data:
                                 tem_aluno_turma = False
                                 for i, al in enumerate(res_turma.data):
@@ -603,8 +608,8 @@ def main(page: ft.Page):
                         turma_sel = dd_turmas_rank.value
                         lista_rank = ft.Column(spacing=5)
                         try:
-                            # APOLINÁRIO: Desempate por Ordem Alfabética Adicionado!
-                            res = supabase.table("arena_usuarios").select("nome_aluno, pontos_turma, foto_url").eq("turma", turma_sel).order("pontos_turma", desc=True).order("nome_aluno", desc=False).execute()
+                            # APOLINÁRIO: Desempate Triplo: Pontos > Data de Pontuação > Ordem Alfabética
+                            res = supabase.table("arena_usuarios").select("nome_aluno, pontos_turma, foto_url").eq("turma", turma_sel).order("pontos_turma", desc=True).order("data_ultima_pontuacao", desc=False).order("nome_aluno", desc=False).execute()
                             if res.data:
                                 tem_aluno = False
                                 for i, al in enumerate(res.data):
