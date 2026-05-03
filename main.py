@@ -473,7 +473,8 @@ def main(page: ft.Page):
                     lista = ft.ListView(expand=True, spacing=10, padding=10)
                     lista.controls.append(ft.Text("Lendas da Sericom", size=20, weight="bold", text_align="center", color=ft.Colors.AMBER))
                     try:
-                        res_geral = supabase.table("arena_usuarios").select("nome_aluno, pontos, foto_url").order("pontos", desc=True).execute()
+                        # APOLINÁRIO: Desempate por Ordem Alfabética Adicionado!
+                        res_geral = supabase.table("arena_usuarios").select("nome_aluno, pontos, foto_url").order("pontos", desc=True).order("nome_aluno", desc=False).execute()
                         if res_geral.data:
                             tem_aluno = False
                             for i, al in enumerate(res_geral.data):
@@ -566,7 +567,8 @@ def main(page: ft.Page):
                         
                         lista_turma.controls.append(ft.Text(f"Top da Turma", size=20, weight="bold", text_align="center", color=ft.Colors.AMBER))
                         try:
-                            res_turma = supabase.table("arena_usuarios").select("nome_aluno, pontos_turma, foto_url").eq("turma", t_aluno).order("pontos_turma", desc=True).execute()
+                            # APOLINÁRIO: Desempate por Ordem Alfabética Adicionado!
+                            res_turma = supabase.table("arena_usuarios").select("nome_aluno, pontos_turma, foto_url").eq("turma", t_aluno).order("pontos_turma", desc=True).order("nome_aluno", desc=False).execute()
                             if res_turma.data:
                                 tem_aluno_turma = False
                                 for i, al in enumerate(res_turma.data):
@@ -601,7 +603,8 @@ def main(page: ft.Page):
                         turma_sel = dd_turmas_rank.value
                         lista_rank = ft.Column(spacing=5)
                         try:
-                            res = supabase.table("arena_usuarios").select("nome_aluno, pontos_turma, foto_url").eq("turma", turma_sel).order("pontos_turma", desc=True).execute()
+                            # APOLINÁRIO: Desempate por Ordem Alfabética Adicionado!
+                            res = supabase.table("arena_usuarios").select("nome_aluno, pontos_turma, foto_url").eq("turma", turma_sel).order("pontos_turma", desc=True).order("nome_aluno", desc=False).execute()
                             if res.data:
                                 tem_aluno = False
                                 for i, al in enumerate(res.data):
