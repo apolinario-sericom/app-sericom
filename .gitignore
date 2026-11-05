@@ -1,0 +1,9 @@
+node_modules/
+android/
+.DS_Store
+*.keystore
+*.jks
+*.key
+.env
+.env.*
+!example.env

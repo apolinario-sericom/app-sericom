@@ -1,0 +1,8 @@
+{
+  "appId": "br.com.sericom.app.demo",
+  "appName": "Sericom Demo",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}
